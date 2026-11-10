@@ -1,0 +1,441 @@
+
+import React, { useState } from "react";
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Image,
+    ScrollView,
+    StyleSheet,
+    ActivityIndicator,
+    Alert,
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import API from "../api/axiosClient";
+
+const BLUE = "#2563EB";
+
+export default function EditUserScreen({
+    token,
+    user,
+    onBack,
+    onSuccess,
+}) {
+    const [hoten, setHoten] = useState(user.hoten || "");
+    const [email, setEmail] = useState(user.email || "");
+    const [matkhau, setMatkhau] = useState("");
+    const [hinhanh, setHinhanh] = useState(user.hinhanh || "");
+    const [fileName, setFileName] = useState(
+        user.hinhanh ? "Ảnh hiện tại" : ""
+    );
+    const [loading, setLoading] = useState(false);
+
+    const chooseImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ["images"],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.5,
+                base64: true,
+            });
+
+            if (result.canceled) return;
+
+            const asset = result.assets[0];
+
+            if (!asset.base64) {
+                Alert.alert("Thông báo", "Không thể đọc ảnh đã chọn.");
+                return;
+            }
+
+            const mimeType = asset.mimeType || "image/jpeg";
+            setHinhanh(`data:${mimeType};base64,${asset.base64}`);
+            setFileName(asset.fileName || "Ảnh mới đã chọn");
+        } catch (error) {
+            Alert.alert("Lỗi", "Không thể mở thư viện ảnh.");
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (!hoten.trim() || !email.trim()) {
+            Alert.alert("Thiếu thông tin", "Vui lòng nhập họ tên và email.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            const updateData = {
+                hoten: hoten.trim(),
+                email: email.trim(),
+                hinhanh,
+            };
+
+            // Chỉ cập nhật mật khẩu nếu người dùng nhập mật khẩu mới.
+            if (matkhau.trim()) {
+                updateData.matkhau = matkhau;
+            }
+
+            await API.put(`/users/${user._id}`, updateData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            Alert.alert("Thành công", "Đã cập nhật thông tin người dùng.");
+            onSuccess();
+        } catch (error) {
+            Alert.alert(
+                "Không thể cập nhật",
+                error.response?.data?.message || "Đã xảy ra lỗi. Vui lòng thử lại."
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <View style={styles.screen}>
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+            >
+                <View style={styles.pageHeader}>
+                    <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                        <Text style={styles.backText}>← Quay lại</Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.breadcrumb}>
+                        Quản lý người dùng / Chỉnh sửa
+                    </Text>
+
+                    <Text style={styles.pageTitle}>Sửa người dùng</Text>
+                    <Text style={styles.pageDescription}>
+                        Cập nhật thông tin tài khoản người dùng.
+                    </Text>
+                </View>
+
+                <View style={styles.formCard}>
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.sectionIcon}>
+                            <Text style={styles.sectionIconText}>✎</Text>
+                        </View>
+                        <View>
+                            <Text style={styles.sectionTitle}>Thông tin tài khoản</Text>
+                            <Text style={styles.sectionDescription}>
+                                Chỉnh sửa các thông tin bên dưới
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    <Text style={styles.label}>Họ và tên *</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Nhập họ và tên"
+                        placeholderTextColor="#94A3B8"
+                        value={hoten}
+                        onChangeText={setHoten}
+                    />
+
+                    <Text style={styles.label}>Email *</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="example@email.com"
+                        placeholderTextColor="#94A3B8"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                    />
+
+                    <Text style={styles.label}>Mật khẩu mới</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Để trống nếu không muốn đổi"
+                        placeholderTextColor="#94A3B8"
+                        value={matkhau}
+                        onChangeText={setMatkhau}
+                        secureTextEntry
+                    />
+                    <Text style={styles.passwordHint}>
+                        Không cần nhập mật khẩu nếu bạn muốn giữ mật khẩu hiện tại.
+                    </Text>
+
+                    <View style={styles.divider} />
+
+                    <Text style={styles.label}>Ảnh đại diện</Text>
+                    <View style={styles.imageSection}>
+                        <View style={styles.imagePreview}>
+                            {hinhanh ? (
+                                <Image
+                                    source={{ uri: hinhanh }}
+                                    style={styles.previewImage}
+                                />
+                            ) : (
+                                <Text style={styles.imagePlaceholder}>Ảnh</Text>
+                            )}
+                        </View>
+
+                        <View style={styles.imageDetails}>
+                            <Text style={styles.imageTitle}>Ảnh người dùng</Text>
+                            <Text style={styles.imageHint}>
+                                Chọn ảnh mới nếu muốn thay đổi ảnh hiện tại.
+                            </Text>
+
+                            <TouchableOpacity
+                                style={styles.chooseFileButton}
+                                onPress={chooseImage}
+                            >
+                                <Text style={styles.chooseFileText}>＋ Chọn tệp</Text>
+                            </TouchableOpacity>
+
+                            {fileName ? (
+                                <Text style={styles.fileName} numberOfLines={1}>
+                                    {fileName}
+                                </Text>
+                            ) : null}
+                        </View>
+                    </View>
+
+                    <View style={styles.formActions}>
+                        <TouchableOpacity
+                            style={styles.cancelButton}
+                            onPress={onBack}
+                            disabled={loading}
+                        >
+                            <Text style={styles.cancelText}>Hủy</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.submitButton}
+                            onPress={handleSubmit}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.submitText}>Lưu thay đổi</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </ScrollView>
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: "#F4F7FC",
+        minHeight: "100%",
+    },
+    scrollContent: {
+        width: "100%",
+        maxWidth: 900,
+        alignSelf: "center",
+        padding: 24,
+        paddingBottom: 40,
+    },
+    pageHeader: {
+        marginBottom: 22,
+    },
+    backButton: {
+        alignSelf: "flex-start",
+        paddingVertical: 7,
+        paddingHorizontal: 10,
+        backgroundColor: "#FFFFFF",
+        borderRadius: 7,
+        marginBottom: 17,
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+    },
+    backText: {
+        color: BLUE,
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    breadcrumb: {
+        color: "#64748B",
+        fontSize: 12,
+        marginBottom: 8,
+    },
+    pageTitle: {
+        color: "#172B4D",
+        fontSize: 25,
+        fontWeight: "bold",
+    },
+    pageDescription: {
+        color: "#64748B",
+        fontSize: 13,
+        marginTop: 7,
+    },
+    formCard: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 13,
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+        padding: 24,
+    },
+    sectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 18,
+    },
+    sectionIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: "#EFF6FF",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 12,
+    },
+    sectionIconText: {
+        color: BLUE,
+        fontSize: 21,
+    },
+    sectionTitle: {
+        color: "#172B4D",
+        fontSize: 15,
+        fontWeight: "bold",
+    },
+    sectionDescription: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: 4,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: "#E2E8F0",
+        marginBottom: 20,
+    },
+    label: {
+        color: "#334155",
+        fontSize: 12,
+        fontWeight: "600",
+        marginBottom: 8,
+        marginTop: 3,
+    },
+    input: {
+        height: 44,
+        borderWidth: 1,
+        borderColor: "#DCE3ED",
+        borderRadius: 8,
+        paddingHorizontal: 13,
+        fontSize: 13,
+        color: "#172B4D",
+        backgroundColor: "#FFFFFF",
+        marginBottom: 17,
+    },
+    passwordHint: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: -10,
+        marginBottom: 20,
+    },
+    imageSection: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F8FAFC",
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 24,
+    },
+    imagePreview: {
+        width: 76,
+        height: 76,
+        borderRadius: 10,
+        backgroundColor: "#EAF0F8",
+        justifyContent: "center",
+        alignItems: "center",
+        overflow: "hidden",
+        marginRight: 15,
+    },
+    previewImage: {
+        width: "100%",
+        height: "100%",
+    },
+    imagePlaceholder: {
+        color: "#94A3B8",
+        fontSize: 12,
+    },
+    imageDetails: {
+        flex: 1,
+        minWidth: 0,
+        alignItems: "flex-start",
+    },
+    imageTitle: {
+        color: "#334155",
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    imageHint: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: 4,
+        marginBottom: 9,
+    },
+    chooseFileButton: {
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#BFDBFE",
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+    },
+    chooseFileText: {
+        color: BLUE,
+        fontSize: 11,
+        fontWeight: "600",
+    },
+    fileName: {
+        color: "#64748B",
+        fontSize: 10,
+        marginTop: 6,
+        maxWidth: "100%",
+    },
+    formActions: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        gap: 10,
+        borderTopWidth: 1,
+        borderTopColor: "#E2E8F0",
+        paddingTop: 19,
+    },
+    cancelButton: {
+        minWidth: 85,
+        height: 42,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#CBD5E1",
+        justifyContent: "center",
+        alignItems: "center",
+        paddingHorizontal: 15,
+    },
+    cancelText: {
+        color: "#475569",
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    submitButton: {
+        minWidth: 145,
+        height: 42,
+        borderRadius: 8,
+        backgroundColor: BLUE,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingHorizontal: 16,
+    },
+    submitText: {
+        color: "#FFFFFF",
+        fontSize: 12,
+        fontWeight: "bold",
+    },
+});
